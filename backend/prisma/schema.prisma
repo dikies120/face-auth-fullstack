@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String         @id @default(uuid())
+  email          String         @unique
+  name           String
+  passwordHash   String
+  faceDescriptor Json
+  faceImageUrl   String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  loginLogs      FaceLoginLog[]
+
+  @@map("users")
+}
+
+model FaceLoginLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  distance   Float
+  isMatched  Boolean
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@map("face_login_logs")
+}

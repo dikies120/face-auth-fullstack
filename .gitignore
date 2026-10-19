@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.env
+.env.*
+!.env.example
+.next
+**/.next
+dist
+**/dist
+build
+.turbo
+*.log
+.DS_Store
+Thumbs.db
