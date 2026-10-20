@@ -27,13 +27,24 @@ export function isValidFaceDescriptor(descriptor: unknown): descriptor is number
   return descriptor.every((val) => typeof val === "number" && !isNaN(val));
 }
 
-export function findMatchingUser(
+export interface MatchableUser {
+  id: string;
+  name: string;
+  email?: string | null;
+  memberCode?: string | null;
+  department?: string | null;
+  faceImageUrl?: string | null;
+  faceDescriptor: unknown;
+  [key: string]: any;
+}
+
+export function findMatchingUser<T extends MatchableUser>(
   incomingDescriptor: number[],
-  users: Array<{ id: string; email: string; name: string; faceDescriptor: unknown }>,
+  users: T[],
   threshold: number = 0.5
-): { matchedUser: { id: string; email: string; name: string } | null; minDistance: number } {
+): { matchedUser: T | null; minDistance: number } {
   let minDistance = Infinity;
-  let matchedUser: { id: string; email: string; name: string } | null = null;
+  let matchedUser: T | null = null;
 
   for (const user of users) {
     const storedDescriptor = user.faceDescriptor as number[];
@@ -42,7 +53,7 @@ export function findMatchingUser(
       if (distance < minDistance) {
         minDistance = distance;
         if (distance < threshold) {
-          matchedUser = { id: user.id, email: user.email, name: user.name };
+          matchedUser = user;
         }
       }
     }

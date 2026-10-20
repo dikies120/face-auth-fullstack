@@ -9,16 +9,34 @@ datasource db {
 
 model User {
   id             String         @id @default(uuid())
-  email          String         @unique
+  memberCode     String?        @unique
   name           String
-  passwordHash   String
+  email          String?        @unique
+  department     String?
+  passwordHash   String?
+  role           String         @default("MEMBER")
   faceDescriptor Json
   faceImageUrl   String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  attendances    Attendance[]
   loginLogs      FaceLoginLog[]
 
   @@map("users")
+}
+
+model Attendance {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type               String   // "IN" or "OUT"
+  status             String   @default("ON_TIME") // "ON_TIME", "LATE"
+  similarityDistance Float
+  snapshotUrl        String?
+  notes              String?
+  createdAt          DateTime @default(now())
+
+  @@map("attendances")
 }
 
 model FaceLoginLog {
