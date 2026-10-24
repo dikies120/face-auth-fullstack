@@ -1,25 +1,20 @@
-import { Router } from "express";
-import {
+const { Router } = require("express");
+const {
   scanAttendance,
   getTodaySummary,
   getAttendanceHistory,
   registerMemberByAdmin,
   getMembers,
   deleteMember,
-} from "../controllers/attendanceController.js";
+} = require("../controllers/attendanceController");
 
 const router = Router();
 
-// Kiosk Face Scan
 router.post("/scan", scanAttendance);
-
-// Admin Dashboard & Reports
 router.get("/today", getTodaySummary);
 router.get("/history", getAttendanceHistory);
-
-// Admin Member Management
 router.post("/members", registerMemberByAdmin);
 router.get("/members", getMembers);
 router.delete("/members/:id", deleteMember);
 
-export default router;
+module.exports = router;

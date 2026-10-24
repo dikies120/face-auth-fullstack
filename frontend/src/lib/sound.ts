@@ -12,11 +12,11 @@ export function playSound(type: "success" | "error" | "warning") {
       const gain = ctx.createGain();
 
       osc1.type = "sine";
-      osc1.frequency.setValueAtTime(523.25, now); // C5
-      osc1.frequency.exponentialRampToValueAtTime(783.99, now + 0.15); // G5
+      osc1.frequency.setValueAtTime(523.25, now);
+      osc1.frequency.exponentialRampToValueAtTime(783.99, now + 0.15);
 
       osc2.type = "sine";
-      osc2.frequency.setValueAtTime(659.25, now + 0.08); // E5
+      osc2.frequency.setValueAtTime(659.25, now + 0.08);
 
       gain.gain.setValueAtTime(0.2, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
@@ -63,7 +63,5 @@ export function playSound(type: "success" | "error" | "warning") {
       osc.start(now);
       osc.stop(now + 0.2);
     }
-  } catch {
-    // Ignore audio playback restrictions if user hasn't interacted yet
-  }
+  } catch {}
 }

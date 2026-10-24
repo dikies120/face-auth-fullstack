@@ -1,17 +1,16 @@
-import { Request, Response } from "express";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { prisma } from "../config/prisma.js";
-import {
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const { prisma } = require("../config/prisma");
+const {
   calculateEuclideanDistance,
   isValidFaceDescriptor,
   findMatchingUser,
-} from "../utils/faceMatcher.js";
+} = require("../utils/faceMatcher");
 
 const JWT_SECRET = process.env.JWT_SECRET || "default_jwt_secret_key";
 const MATCH_THRESHOLD = parseFloat(process.env.FACE_MATCH_THRESHOLD || "0.5");
 
-export async function registerWithFace(req: Request, res: Response) {
+async function registerWithFace(req, res) {
   try {
     const { name, email, password, faceDescriptor, faceImageUrl } = req.body;
 
@@ -73,25 +72,27 @@ export async function registerWithFace(req: Request, res: Response) {
         passwordHash,
         faceDescriptor,
         faceImageUrl: faceImageUrl || null,
+        role: "USER",
       },
       select: {
         id: true,
         name: true,
         email: true,
+        role: true,
         faceImageUrl: true,
         createdAt: true,
       },
     });
 
     const token = jwt.sign(
-      { userId: newUser.id, email: newUser.email },
+      { userId: newUser.id, email: newUser.email, role: newUser.role },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
 
     return res.status(201).json({
       success: true,
-      message: "Registrasi dengan pengenalan wajah berhasil.",
+      message: "Registrasi akun berhasil.",
       data: {
         user: newUser,
         token,
@@ -106,7 +107,79 @@ export async function registerWithFace(req: Request, res: Response) {
   }
 }
 
-export async function verifyFaceLogin(req: Request, res: Response) {
+async function registerWithPassword(req, res) {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Nama, email, dan kata sandi wajib diisi.",
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Kata sandi minimal 6 karakter.",
+      });
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "Email sudah terdaftar. Silakan gunakan email lain atau masuk.",
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        email: email.toLowerCase(),
+        passwordHash,
+        faceDescriptor: [],
+        role: "USER",
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    const token = jwt.sign(
+      { userId: newUser.id, email: newUser.email, role: newUser.role },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Pendaftaran akun berhasil! Mengalihkan ke dasbor...",
+      data: {
+        user: newUser,
+        token,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Terjadi kesalahan pada server saat registrasi.",
+      error: error instanceof Error ? error.message : "Internal server error",
+    });
+  }
+}
+
+async function verifyFaceLogin(req, res) {
   try {
     const { email, faceDescriptor } = req.body;
 
@@ -129,7 +202,7 @@ export async function verifyFaceLogin(req: Request, res: Response) {
         });
       }
 
-      const storedDescriptor = user.faceDescriptor as number[];
+      const storedDescriptor = user.faceDescriptor;
       const distance = calculateEuclideanDistance(faceDescriptor, storedDescriptor);
       const isMatched = distance < MATCH_THRESHOLD;
 
@@ -152,7 +225,7 @@ export async function verifyFaceLogin(req: Request, res: Response) {
       }
 
       const token = jwt.sign(
-        { userId: user.id, email: user.email },
+        { userId: user.id, email: user.email, role: user.role },
         JWT_SECRET,
         { expiresIn: "7d" }
       );
@@ -165,6 +238,7 @@ export async function verifyFaceLogin(req: Request, res: Response) {
           id: user.id,
           name: user.name,
           email: user.email,
+          role: user.role,
           faceImageUrl: user.faceImageUrl,
         },
         token,
@@ -176,6 +250,7 @@ export async function verifyFaceLogin(req: Request, res: Response) {
         id: true,
         name: true,
         email: true,
+        role: true,
         faceDescriptor: true,
         faceImageUrl: true,
       },
@@ -208,7 +283,7 @@ export async function verifyFaceLogin(req: Request, res: Response) {
     });
 
     const token = jwt.sign(
-      { userId: matchedUser.id, email: matchedUser.email },
+      { userId: matchedUser.id, email: matchedUser.email, role: fullUser?.role },
       JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -221,6 +296,7 @@ export async function verifyFaceLogin(req: Request, res: Response) {
         id: fullUser?.id,
         name: fullUser?.name,
         email: fullUser?.email,
+        role: fullUser?.role,
         faceImageUrl: fullUser?.faceImageUrl,
       },
       token,
@@ -234,9 +310,66 @@ export async function verifyFaceLogin(req: Request, res: Response) {
   }
 }
 
-export async function getMe(req: Request, res: Response) {
+async function loginWithPassword(req, res) {
   try {
-    const userId = (req as any).user?.userId;
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email dan kata sandi wajib diisi.",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user || !user.passwordHash) {
+      return res.status(401).json({
+        success: false,
+        message: "Email atau kata sandi tidak cocok.",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Email atau kata sandi tidak cocok.",
+      });
+    }
+
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.json({
+      success: true,
+      message: `Login berhasil! Selamat datang, ${user.name}.`,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        faceImageUrl: user.faceImageUrl,
+      },
+      token,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Terjadi kesalahan pada server saat login.",
+      error: error instanceof Error ? error.message : "Internal error",
+    });
+  }
+}
+
+async function getMe(req, res) {
+  try {
+    const userId = req.user?.userId;
     if (!userId) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
@@ -247,6 +380,7 @@ export async function getMe(req: Request, res: Response) {
         id: true,
         name: true,
         email: true,
+        role: true,
         faceImageUrl: true,
         createdAt: true,
         loginLogs: {
@@ -269,3 +403,11 @@ export async function getMe(req: Request, res: Response) {
     });
   }
 }
+
+module.exports = {
+  registerWithFace,
+  registerWithPassword,
+  verifyFaceLogin,
+  loginWithPassword,
+  getMe,
+};

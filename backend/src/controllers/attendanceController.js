@@ -1,13 +1,11 @@
-import { Request, Response } from "express";
-import { prisma } from "../config/prisma.js";
-import {
+const { prisma } = require("../config/prisma");
+const {
   calculateEuclideanDistance,
   isValidFaceDescriptor,
   findMatchingUser,
-} from "../utils/faceMatcher.js";
+} = require("../utils/faceMatcher");
 
 const MATCH_THRESHOLD = parseFloat(process.env.FACE_MATCH_THRESHOLD || "0.5");
-// Jam batas masuk tepat waktu: 08:30:00 (Format lokal)
 const ON_TIME_HOUR = 8;
 const ON_TIME_MINUTE = 30;
 
@@ -18,12 +16,7 @@ function getStartAndEndOfToday() {
   return { start, end };
 }
 
-/**
- * Endpoint Utama Kiosk Mesin Absensi:
- * Menerima embedding wajah dari kamera, mencocokkan dengan seluruh user di DB,
- * lalu otomatis mencatat Absen Masuk (IN) atau Absen Pulang (OUT).
- */
-export async function scanAttendance(req: Request, res: Response) {
+async function scanAttendance(req, res) {
   try {
     const { faceDescriptor, snapshotUrl } = req.body;
 
@@ -34,7 +27,6 @@ export async function scanAttendance(req: Request, res: Response) {
       });
     }
 
-    // Ambil semua member yang terdaftar
     const allMembers = await prisma.user.findMany({
       select: {
         id: true,
@@ -54,7 +46,6 @@ export async function scanAttendance(req: Request, res: Response) {
       });
     }
 
-    // Pencocokan 1:N Euclidean Distance
     const { matchedUser, minDistance } = findMatchingUser(
       faceDescriptor,
       allMembers,
@@ -72,7 +63,6 @@ export async function scanAttendance(req: Request, res: Response) {
 
     const { start, end } = getStartAndEndOfToday();
 
-    // Ambil riwayat absensi user untuk hari ini
     const todayAttendances = await prisma.attendance.findMany({
       where: {
         userId: matchedUser.id,
@@ -88,7 +78,6 @@ export async function scanAttendance(req: Request, res: Response) {
 
     const now = new Date();
 
-    // Cooldown anti-spam: Jika baru saja absen kurang dari 20 detik yang lalu
     const lastScan = todayAttendances[todayAttendances.length - 1];
     if (lastScan) {
       const diffSeconds = (now.getTime() - new Date(lastScan.createdAt).getTime()) / 1000;
@@ -109,15 +98,14 @@ export async function scanAttendance(req: Request, res: Response) {
       }
     }
 
-    let type: "IN" | "OUT" = "IN";
-    let status: "ON_TIME" | "LATE" = "ON_TIME";
+    let type = "IN";
+    let status = "ON_TIME";
     let message = "";
 
     const hasIn = todayAttendances.some((a) => a.type === "IN");
     const hasOut = todayAttendances.some((a) => a.type === "OUT");
 
     if (!hasIn) {
-      // Pertama kali absen hari ini -> Masuk (IN)
       type = "IN";
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
@@ -133,9 +121,7 @@ export async function scanAttendance(req: Request, res: Response) {
 
       message = `Absen Masuk Berhasil! Selamat datang, ${matchedUser.name}.`;
     } else if (!hasOut) {
-      // Sudah ada IN hari ini -> Absen Pulang (OUT)
-      // Cek jeda minimal 2 menit setelah IN agar tidak langsung checkout tidak sengaja
-      const firstIn = todayAttendances.find((a) => a.type === "IN")!;
+      const firstIn = todayAttendances.find((a) => a.type === "IN");
       const diffMinutes = (now.getTime() - new Date(firstIn.createdAt).getTime()) / (1000 * 60);
 
       if (diffMinutes < 2) {
@@ -155,13 +141,11 @@ export async function scanAttendance(req: Request, res: Response) {
       status = "ON_TIME";
       message = `Absen Pulang Berhasil! Terima kasih atas kerja keras Anda hari ini, ${matchedUser.name}.`;
     } else {
-      // Sudah lengkap IN dan OUT
       type = "OUT";
       status = "ON_TIME";
       message = `Pembaruan Absen Pulang Berhasil! Sampai jumpa, ${matchedUser.name}.`;
     }
 
-    // Simpan ke database
     const newAttendance = await prisma.attendance.create({
       data: {
         userId: matchedUser.id,
@@ -187,7 +171,7 @@ export async function scanAttendance(req: Request, res: Response) {
       success: true,
       message,
       data: newAttendance,
-      matchedScore: (1 - minDistance) * 100, // perkiraan persentase kemiripan
+      matchedScore: (1 - minDistance) * 100,
     });
   } catch (error) {
     console.error("Scan attendance error:", error);
@@ -199,10 +183,7 @@ export async function scanAttendance(req: Request, res: Response) {
   }
 }
 
-/**
- * Mengambil ringkasan dan riwayat presensi hari ini untuk Portal Admin
- */
-export async function getTodaySummary(req: Request, res: Response) {
+async function getTodaySummary(req, res) {
   try {
     const { start, end } = getStartAndEndOfToday();
 
@@ -232,8 +213,7 @@ export async function getTodaySummary(req: Request, res: Response) {
       }),
     ]);
 
-    // Hitung statistik unik user yang hadir hari ini
-    const presentUserIds = new Set<string>();
+    const presentUserIds = new Set();
     let inCount = 0;
     let outCount = 0;
     let lateCount = 0;
@@ -271,14 +251,11 @@ export async function getTodaySummary(req: Request, res: Response) {
   }
 }
 
-/**
- * Riwayat presensi lengkap (dengan filter tanggal & pencarian)
- */
-export async function getAttendanceHistory(req: Request, res: Response) {
+async function getAttendanceHistory(req, res) {
   try {
     const { date, search, department } = req.query;
 
-    const where: any = {};
+    const where = {};
 
     if (date && typeof date === "string") {
       const selectedDate = new Date(date);
@@ -335,10 +312,7 @@ export async function getAttendanceHistory(req: Request, res: Response) {
   }
 }
 
-/**
- * Pendaftaran Anggota Baru oleh Admin (Nama + Foto Wajah + 128D Descriptor)
- */
-export async function registerMemberByAdmin(req: Request, res: Response) {
+async function registerMemberByAdmin(req, res) {
   try {
     const { name, memberCode, department, email, faceDescriptor, faceImageUrl } = req.body;
 
@@ -356,7 +330,6 @@ export async function registerMemberByAdmin(req: Request, res: Response) {
       });
     }
 
-    // Validasi memberCode jika diisi
     if (memberCode && memberCode.trim()) {
       const existingCode = await prisma.user.findUnique({
         where: { memberCode: memberCode.trim() },
@@ -369,7 +342,6 @@ export async function registerMemberByAdmin(req: Request, res: Response) {
       }
     }
 
-    // Validasi anti-duplikasi wajah
     const allUsers = await prisma.user.findMany({
       select: {
         id: true,
@@ -393,7 +365,6 @@ export async function registerMemberByAdmin(req: Request, res: Response) {
       });
     }
 
-    // Buat member baru
     const newMember = await prisma.user.create({
       data: {
         name: name.trim(),
@@ -430,10 +401,7 @@ export async function registerMemberByAdmin(req: Request, res: Response) {
   }
 }
 
-/**
- * Mendapatkan daftar seluruh anggota terdaftar
- */
-export async function getMembers(req: Request, res: Response) {
+async function getMembers(req, res) {
   try {
     const members = await prisma.user.findMany({
       where: {
@@ -469,10 +437,7 @@ export async function getMembers(req: Request, res: Response) {
   }
 }
 
-/**
- * Menghapus anggota
- */
-export async function deleteMember(req: Request, res: Response) {
+async function deleteMember(req, res) {
   try {
     const id = String(req.params.id);
 
@@ -503,3 +468,12 @@ export async function deleteMember(req: Request, res: Response) {
     });
   }
 }
+
+module.exports = {
+  scanAttendance,
+  getTodaySummary,
+  getAttendanceHistory,
+  registerMemberByAdmin,
+  getMembers,
+  deleteMember,
+};

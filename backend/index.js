@@ -1,8 +1,9 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import authRoutes from "./routes/authRoutes.js";
-import attendanceRoutes from "./routes/attendanceRoutes.js";
+const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const authRoutes = require("./src/routes/authRoutes");
+const attendanceRoutes = require("./src/routes/attendanceRoutes");
+const adminRoutes = require("./src/routes/adminRoutes");
 
 dotenv.config();
 
@@ -30,9 +31,10 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
 });
 
-export default app;
+module.exports = app;

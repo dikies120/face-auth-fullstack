@@ -1,7 +1,4 @@
-export function calculateEuclideanDistance(
-  descriptor1: number[],
-  descriptor2: number[]
-): number {
+function calculateEuclideanDistance(descriptor1, descriptor2) {
   if (descriptor1.length !== descriptor2.length) {
     throw new Error(
       `Dimensi embedding tidak sama! descriptor1: ${descriptor1.length}, descriptor2: ${descriptor2.length}`
@@ -17,7 +14,7 @@ export function calculateEuclideanDistance(
   return Math.sqrt(sum);
 }
 
-export function isValidFaceDescriptor(descriptor: unknown): descriptor is number[] {
+function isValidFaceDescriptor(descriptor) {
   if (!Array.isArray(descriptor)) {
     return false;
   }
@@ -27,27 +24,12 @@ export function isValidFaceDescriptor(descriptor: unknown): descriptor is number
   return descriptor.every((val) => typeof val === "number" && !isNaN(val));
 }
 
-export interface MatchableUser {
-  id: string;
-  name: string;
-  email?: string | null;
-  memberCode?: string | null;
-  department?: string | null;
-  faceImageUrl?: string | null;
-  faceDescriptor: unknown;
-  [key: string]: any;
-}
-
-export function findMatchingUser<T extends MatchableUser>(
-  incomingDescriptor: number[],
-  users: T[],
-  threshold: number = 0.5
-): { matchedUser: T | null; minDistance: number } {
+function findMatchingUser(incomingDescriptor, users, threshold = 0.5) {
   let minDistance = Infinity;
-  let matchedUser: T | null = null;
+  let matchedUser = null;
 
   for (const user of users) {
-    const storedDescriptor = user.faceDescriptor as number[];
+    const storedDescriptor = user.faceDescriptor;
     if (isValidFaceDescriptor(storedDescriptor)) {
       const distance = calculateEuclideanDistance(incomingDescriptor, storedDescriptor);
       if (distance < minDistance) {
@@ -61,3 +43,9 @@ export function findMatchingUser<T extends MatchableUser>(
 
   return { matchedUser, minDistance };
 }
+
+module.exports = {
+  calculateEuclideanDistance,
+  isValidFaceDescriptor,
+  findMatchingUser,
+};

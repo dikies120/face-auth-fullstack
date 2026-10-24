@@ -29,8 +29,8 @@ model Attendance {
   id                 String   @id @default(uuid())
   userId             String
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type               String   // "IN" or "OUT"
-  status             String   @default("ON_TIME") // "ON_TIME", "LATE"
+  type               String
+  status             String   @default("ON_TIME")
   similarityDistance Float
   snapshotUrl        String?
   notes              String?

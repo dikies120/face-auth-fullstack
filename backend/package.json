@@ -2,18 +2,14 @@
   "name": "face-auth-backend",
   "version": "1.0.0",
   "description": "Backend API for Face Recognition Registration and Authentication with Node.js & Prisma",
-  "main": "dist/index.js",
+  "main": "index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node index.js",
+    "dev": "node --watch index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
   },
-  "keywords": ["face-recognition", "auth", "express", "prisma", "postgresql"],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
@@ -23,13 +19,6 @@
     "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0",
-    "@types/jsonwebtoken": "^9.0.7",
-    "@types/node": "^22.10.2",
-    "prisma": "^5.22.0",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "prisma": "^5.22.0"
   }
 }
